@@ -3,6 +3,7 @@ package com.ammaraskar.intent.fuzz
 import jadx.core.dex.instructions.BaseInvokeNode
 import jadx.core.dex.instructions.ConstStringNode
 import jadx.core.dex.instructions.args.InsnWrapArg
+import jadx.core.dex.instructions.args.RegisterArg
 import jadx.core.dex.nodes.MethodNode
 import jadx.core.dex.visitors.AbstractVisitor
 
@@ -12,6 +13,8 @@ class IntentExtraUsageTreeVisitor : AbstractVisitor() {
      * Mapping of intent extra keys to their types.
      */
     val extras: HashMap<String, String> = hashMapOf()
+
+    // val extras: MutableList<String> = mutableListOf()
 
     override fun visit(mth: MethodNode) {
         if (mth.isNoCode) {
@@ -49,28 +52,57 @@ class IntentExtraUsageTreeVisitor : AbstractVisitor() {
         "getStringArrayListExtra" to "StringArrayList",
     )
 
+    private val gettersToParameterTypes = hashMapOf(
+        "getQueryParameter" to "String",
+        "getQueryParameters" to "StringArray"
+    )
+
+    // Intent의 get*Extra 함수 매칭을
+    // Uri의 getQueryParameter / getQueryParameters 함수 매칭으로 수정
     private fun visitInvokeNode(node: BaseInvokeNode) {
-        if (node.callMth.declClass.fullName != "android.content.Intent") {
+        // if (node.callMth.declClass.fullName != "android.content.Intent") {
+        //     return;
+        // }
+
+        // android.net.Uri가 아닌 경우 return
+        if (node.callMth.declClass.fullName != "android.net.Uri") {
             return;
         }
 
-        val extraType = gettersToExtraTypes[node.callMth.name] ?: return
+        // 함수 이름 확인: getQueryParameter / getQueryParameters
+        val extraType = gettersToParameterTypes[node.callMth.name] ?: return
         var key: String? = null;
 
         for (argument in node.arguments) {
-            if (argument !is InsnWrapArg) {
-                continue;
+            if (argument is InsnWrapArg) {
+                val wrapInsn = argument.wrapInsn
+                if (wrapInsn is ConstStringNode) {
+                    key = wrapInsn.string
+                    break
+                }
             }
-            val wrappedInstruction = argument.wrapInsn
-            if (wrappedInstruction !is ConstStringNode) {
-                continue;
+            else if (argument is RegisterArg) {
+                val assignInsn = argument.sVar?.assignInsn
+                if (assignInsn is ConstStringNode) {
+                    key = assignInsn.string
+                    break
+                }
             }
-            key = wrappedInstruction.string
+
+            // if (argument !is InsnWrapArg) {
+            //     continue;
+            // }
+            // val wrappedInstruction = argument.wrapInsn
+            // if (wrappedInstruction !is ConstStringNode) {
+            //     continue;
+            // }
+            // key = wrappedInstruction.string
         }
 
         if (key == null) {
             return
         }
+
         extras[key] = extraType
     }
 }

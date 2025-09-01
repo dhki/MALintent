@@ -11,6 +11,7 @@ class IntentTemplate(
     val component: String,
     val actions: Collection<String>,
     val categories: Collection<String>,
+    val datas: Collection<String>,
     val known_extras_keys: Map<String, String>,
 ) {
     // Save this template to a json file in a given directory

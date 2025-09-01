@@ -30,10 +30,20 @@ tasks.test {
     useJUnit()
 }
 
+kotlin {
+    sourceSets {
+        val test by getting {
+            kotlin.setSrcDirs(emptyList<String>())     // src/test/kotlin 무시
+            resources.setSrcDirs(emptyList<String>())  // src/test/resources 무시
+        }
+    }
+}
+
 tasks.withType<KotlinCompile>() {
     kotlinOptions.jvmTarget = "1.8"
 }
 
 application {
     mainClass.set("com.ammaraskar.intent.fuzz.MainKt")
+    applicationDefaultJvmArgs = listOf("-Xmx4g", "-Xms2g")
 }
