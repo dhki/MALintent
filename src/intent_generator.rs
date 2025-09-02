@@ -16,6 +16,7 @@ pub struct IntentTemplate {
     component: String,
     actions: Vec<String>,
     categories: Vec<String>,
+    datas: Vec<String>,
     pub known_extras_keys: HashMap<String, String>,
 }
 
@@ -32,13 +33,19 @@ impl IntentTemplate {
         return self.component.split("/").collect::<Vec<&str>>()[1].to_string();
     }
 
+    // add data numbers
     pub fn number_of_intents(&self) -> usize {
-        return self.actions.len() * max(1, self.categories.len());
+        return self.actions.len() * max(1, self.categories.len()) * max(1, self.datas.len());
     }
 
     pub fn get_intent_input_for_index(&self, index: usize) -> IntentInput {
+        let a_len = max(1, self.actions.len());
+        let c_len = max(1, self.categories.len());
+        let d_len = max(1, self.datas.len());
+
         let action_index = index % self.actions.len();
-        let category_index = index / max(1, self.actions.len());
+        let category_index = (index / a_len) % c_len;
+        let data_index = (index / (a_len * c_len)) % d_len;
 
         IntentInput {
             receiver_type: self.receiver_type.clone(),
@@ -47,7 +54,7 @@ impl IntentTemplate {
             component_package: self.package_name(),
             component_class: self.class_name(),
 
-            data: None,
+            data: self.datas[data_index].clone(),
             mime_type: MimeType::TextPlain,
             flags: 0,
 
