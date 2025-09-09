@@ -13,6 +13,7 @@ class IntentTemplate(
     val categories: Collection<String>,
     val datas: Collection<String>,
     val known_extras_keys: Map<String, String>,
+    val params: Map<String, String>
 ) {
     // Save this template to a json file in a given directory
     fun saveToFile(outputDir: File) {
