@@ -51,6 +51,7 @@ class ApkAnalyzer(private val apkFile: File) {
                     // For now we assign all extras to every intent receiver. In the future maybe with some more
                     // advanced static analysis we could figure out which extras correspond to which intent receiver.
                     intentExtraUsageVisitor.extras,
+                    intentExtraUsageVisitor.params,
                 ))
             }
         }

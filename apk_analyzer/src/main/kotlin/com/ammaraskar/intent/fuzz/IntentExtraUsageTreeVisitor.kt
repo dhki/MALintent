@@ -13,8 +13,7 @@ class IntentExtraUsageTreeVisitor : AbstractVisitor() {
      * Mapping of intent extra keys to their types.
      */
     val extras: HashMap<String, String> = hashMapOf()
-
-    // val extras: MutableList<String> = mutableListOf()
+    val params: HashMap<String, String> = hashMapOf()
 
     override fun visit(mth: MethodNode) {
         if (mth.isNoCode) {
@@ -60,49 +59,57 @@ class IntentExtraUsageTreeVisitor : AbstractVisitor() {
     // Intent의 get*Extra 함수 매칭을
     // Uri의 getQueryParameter / getQueryParameters 함수 매칭으로 수정
     private fun visitInvokeNode(node: BaseInvokeNode) {
-        // if (node.callMth.declClass.fullName != "android.content.Intent") {
-        //     return;
-        // }
-
-        // android.net.Uri가 아닌 경우 return
-        if (node.callMth.declClass.fullName != "android.net.Uri") {
+        // Intent 혹은 Uri 관련 함수가 아닌 경우, return : 관심 없음
+        val mthName = node.callMth.declClass.fullName;
+        if (mthName != "android.content.Intent" && mthName != "android.net.Uri") {
             return;
         }
 
-        // 함수 이름 확인: getQueryParameter / getQueryParameters
-        val extraType = gettersToParameterTypes[node.callMth.name] ?: return
         var key: String? = null;
-
-        for (argument in node.arguments) {
-            if (argument is InsnWrapArg) {
-                val wrapInsn = argument.wrapInsn
-                if (wrapInsn is ConstStringNode) {
-                    key = wrapInsn.string
-                    break
+        if (mthName == "android.content.Intent") {
+            val extraType = gettersToExtraTypes[node.callMth.name] ?: return
+            
+            for (argument in node.arguments) {
+                if (argument !is InsnWrapArg) {
+                    continue;
                 }
-            }
-            else if (argument is RegisterArg) {
-                val assignInsn = argument.sVar?.assignInsn
-                if (assignInsn is ConstStringNode) {
-                    key = assignInsn.string
-                    break
+                val wrappedInstruction = argument.wrapInsn
+                if (wrappedInstruction !is ConstStringNode) {
+                    continue;
                 }
+                key = wrappedInstruction.string
             }
 
-            // if (argument !is InsnWrapArg) {
-            //     continue;
-            // }
-            // val wrappedInstruction = argument.wrapInsn
-            // if (wrappedInstruction !is ConstStringNode) {
-            //     continue;
-            // }
-            // key = wrappedInstruction.string
-        }
+            if(key == null) {
+                return;
+            }
 
-        if (key == null) {
-            return
-        }
+            extras[key] = extraType;
+        } else if (mthName == "android.net.Uri") {
+            val extraType = gettersToParameterTypes[node.callMth.name] ?: return
+            
+            for (argument in node.arguments) {
+                if (argument is InsnWrapArg) {
+                    val wrapInsn = argument.wrapInsn
+                    if (wrapInsn is ConstStringNode) {
+                        key = wrapInsn.string
+                        break
+                    }
+                }
+                else if (argument is RegisterArg) {
+                    val assignInsn = argument.sVar?.assignInsn
+                    if (assignInsn is ConstStringNode) {
+                        key = assignInsn.string
+                        break
+                    }
+                }
+            }
 
-        extras[key] = extraType
+            if(key == null) {
+                return;
+            }
+
+            params[key] = extraType;
+        }
     }
 }
