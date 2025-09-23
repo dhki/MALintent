@@ -13,7 +13,7 @@ use intent_input::IntentInput;
 use intent_mutator::{
     IntentRandomAddExtraMutator, IntentRandomDataMutator, IntentRandomExtraContentMutator,
     IntentRandomExtraKeyMutator, IntentRandomExtraSchemeMutator, IntentRandomExtraSuffixMutator,
-    IntentRandomFlagMutator, IntentRandomMimeTypeMutator,
+    IntentRandomFlagMutator, IntentRandomMimeTypeMutator, IntentRandomAddParamMutator, IntentRandomParamContentMutator,
 };
 use socket_coverage_observer::SocketCoverageObserver;
 
@@ -272,7 +272,9 @@ fn fuzz(
         IntentRandomExtraKeyMutator::new(),
         IntentRandomExtraContentMutator::new(),
         IntentRandomExtraSchemeMutator::new(),
-        IntentRandomExtraSuffixMutator::new()
+        IntentRandomExtraSuffixMutator::new(),
+        IntentRandomAddParamMutator::new(), // parameter를 추가하는 mutator
+        IntentRandomParamContentMutator::new() // parameter value를 변환하는 mutator
     ));
     let mut stages = tuple_list!(StdMutationalStage::new(mutator));
 
