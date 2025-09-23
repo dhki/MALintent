@@ -74,7 +74,8 @@ where
                 ExtraType::URI(uri) => Some((index + 1, uri)),
                 _ => None,
             })
-            .chain(input.data.iter().map(|uri| (0, uri)))
+            // data를 String 타입으로 바꾸면서, uri가 아니게 됨 -> 아래 chain은 필요 없음
+            // .chain(input.data.iter().map(|uri| (0, uri)))
             .for_each(|(id, uri)| {
                 let identifier = uri.identifier(id);
                 let content_bytes = uri.content.bytes().to_vec();

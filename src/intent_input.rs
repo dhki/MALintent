@@ -28,13 +28,14 @@ pub struct IntentInput {
 
     // These fields get mutated!
     /// The `data` uri component of the Input, raw UTF-8 bytes.
-    pub data: Option<URIInput>,
+    pub data: String,
     // The `type`, a mime type for the data.
     pub mime_type: MimeType,
     // The `flags` for the intent.
     pub flags: u32,
     // The `extras` for the intent.
     pub extras: Vec<ExtraInput>,
+    pub params: Vec<ParamInput>,
 }
 
 impl IntentInput {
@@ -62,9 +63,21 @@ impl IntentInput {
         );
 
         // Append data to the shell_command if it exists.
-        if let Some(data) = &self.data {
-            write!(&mut command, " -d '{}'", data.identifier(0)).unwrap();
+        // if let Some(data) = &self.data {
+        //     write!(&mut command, " -d '{}'", data.identifier(0)).unwrap();
+        // }
+
+        // data가 존재한다면 baseUrl + parameters의 형태로 data 추가
+        if !self.data.is_empty() {
+            let params_string = self
+                .params
+                .iter()
+                .filter_map(|p| p.command_args())
+                .join("&");
+
+            write!(&mut command, " -d '{}?{}'", self.data, params_string);
         }
+
 
         // Append category to the shell_command if it exists.
         if !self.category.is_empty() {
@@ -241,6 +254,32 @@ impl ExtraInput {
         };
 
         arg_string.map(|v| format!(" --e{} '{}' $'{}'", self.value, self.key, v))
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct ParamInput {
+    // The `key` of the parameters
+    pub key: String,
+    // The value of the parameters (value is String type)
+    pub value: ParamType,
+}
+
+impl ParamInput {
+    pub fn command_args(&self) -> Option<String> {
+        let param_value = encode_hex(self.value.buffer.bytes())
+
+        Some(format!("{}={}", self.key, param_value))
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct ParamType {
+    pub buffer: BytesInput,
+}
+impl ParamType {
+    pub fn content_buffer(&mut self) -> &mut BytesInput {
+        &mut self.buffer
     }
 }
 

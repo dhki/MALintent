@@ -14,9 +14,9 @@ use strum::IntoEnumIterator;
 use crate::{
     intent_generator::IntentTemplate,
     intent_input::{
-        DirectInput, ExtraInput, ExtraType, IntentInput, MimeType, URIInput, URIScheme, URISuffix,
+        DirectInput, ExtraInput, ExtraType, IntentInput, MimeType, URIInput, URIScheme, URISuffix, ParamInput, ParamType,
     },
-    util::COMMON_EXTRA_KEYS,
+    util::COMMON_EXTRA_KEYS, COMMON_PARAM_VALUES,
 };
 
 /// Mutator that randomly modifies the flags attribute of the intent.
@@ -64,6 +64,8 @@ where
 }
 
 /// Mutator that randomly modifies the data attribute of the intent.
+/// 근데 data는 건드리지 않는 게 좋을 거 같은데..?
+/// 그 뒤에 임의의 path를 추가하는 게 아닌 이상?
 pub struct IntentRandomDataMutator<S>
 where
     S: HasRand + HasCorpus + HasMaxSize,
@@ -185,6 +187,109 @@ where
         Ok(MutationResult::Mutated)
     }
 }
+
+pub struct IntentRandomAddParamMutator<S>
+where
+    S: HasRand + HasCorpus, HasMaxSize, HasNamedMetadata,
+{
+    backing_byte_mutator: StdScheduledMutator<BytesInput, BaseByteMutationsType, S>,
+}
+
+impl<S> Named for IntentRandomAddParamMutator<S>
+where
+    S: HasRand + HasCorpus, HasMaxSize, HasNamedMetadata,
+{
+    fn name(&self) -> &str {
+        "IntentRandomAddParamMutator"
+    }
+}
+
+impl<S> IntentRandomAddParamMutator<S>
+where
+    S: HasRand + HasCorpus + HasMaxSize + HasNamedMetadata,
+{
+    pub fn new() -> Self {
+        Self {
+            backing_byte_mutator: StdScheduledMutator::new(base_byte_mutations()),
+        }
+    }
+}
+
+impl<S> Mutator<IntentInput, S> for IntentRandomAddParamMutator<S>
+where
+    S: HasRand + HasCorpus + HasMaxSize + HasNamedMetadata,
+{
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        input: &mut IntentInput,
+        stage_idx: i32,
+    ) -> Result<libafl::prelude::MutationResult, libafl::Error> {
+        // random param을 만들면서 그 안에 값을 채워서 리턴받는다
+        // 이 값은 빈 문자열 혹은 정의된 parameter values 중 한 값이다
+        // 이 param을 muatate 진행한다
+        if input.params.len() >= 15 {
+            return Ok(MutationResult::Skipped);
+        }
+
+        match generate_random_param(state) {
+            Some(p) => input.params.push(p);
+            None => {}
+        }
+
+        let param: &mut ParamInput = &mut input.params.last_mut().unwrap();
+
+        mutate_content(&mut self.backing_byte_mutator, state, param, stage_idx)
+    }
+}
+
+pub struct IntentRandomParamContentMutator<S>
+where
+    S: HasRand + HasCorpus, HasMaxSize, HasNamedMetadata,
+{
+    backing_byte_mutator: StdScheduledMutator<BytesInput, BaseByteMutationsType, S>,
+}
+
+impl<S> Named for IntentRandomParamContentMutator<S>
+where
+    S: HasRand + HasCorpus, HasMaxSize, HasNamedMetadata,
+{
+    fn name(&self) -> &str {
+        "IntentRandomParamContentMutator"
+    }
+}
+
+impl<S> IntentRandomParamContentMutator<S>
+where
+    S: HasRand + HasCorpus + HasMaxSize + HasNamedMetadata,
+{
+    pub fn new() -> Self {
+        Self {
+            backing_byte_mutator: StdScheduledMutator::new(base_byte_mutations()),
+        }
+    }
+}
+
+impl<S> Mutator<IntentInput, S> for IntentRandomParamContentMutator<S>
+where
+    S: HasRand + HasCorpus + HasMaxSize + HasNamedMetadata,
+{
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        input: &mut IntentInput,
+        stage_idx: i32,
+    ) -> Result<libafl::prelude::MutationResult, libafl::Error> {
+        let param = match get_param_to_mutate(state, input) {
+            Ok(param) => param,
+            Err(_) => return Ok(MutationResult::Skipped),
+        };
+
+        // Mutate the content
+        mutate_content(&mut self.backing_byte_mutator, state, param, stage_idx)
+    }
+}
+
 
 // Mutator that randomly modifies the key attribute of the extra.
 pub struct IntentRandomAddExtraMutator<S>
@@ -479,6 +584,55 @@ where
     Ok(input.extras.get_mut(index).unwrap())
 }
 
+fn get_params_to_mutate<'a, S>(
+    state: &mut S,
+    input: &'a mut IntentInput,
+) -> Result<&'a mut ExtraInput, libafl::Error>
+where
+    S: HasRand + HasCorpus + HasMaxSize + HasNamedMetadata,
+{
+    if input.params.is_empty() {
+        // Add a new extra.
+        return Err(libafl::Error::unknown("No extras to mutate"));
+    }
+
+    // Mutate one extra value.
+    let index = state.rand_mut().between(0, (input.params.len() - 1) as u64) as usize;
+
+    Ok(input.params.get_mut(index).unwrap())
+}
+
+
+/// Helper function to get a random ParamInput.
+fn generate_random_param<S>(state: &mut S) -> Option<ParamInput>
+where
+    S: HasRand + HasCorpus + HasMaxSize + HasNamedMetadata,
+{
+    let intent_template = state
+        .named_metadata::<IntentTemplate>("intent_template")
+        .expect("Missing intent template")
+        .clone();
+
+    if intent_template.params.is_empty() { return None; }
+
+    let key: String = state.rand_mut().choose(intent_template.params.keys().map(|k| k.as_str())).to_string();
+    
+    let param_value: String = match state.rand_mut().between(1, 2) {
+        1 => String::new(),
+        2 => { 
+            let index = state.rand_mut().between(0, COMMON_PARAM_VALUES.len() - 1);
+            String::from(COMMON_PARAM_VALUES[index])
+        },
+    }
+
+    let value: ParamType = ParamType{
+        buffer: BytesInput::new(param_value.as_bytes().to_vec()),
+    }
+    
+    Some(ParamInput {key, value})
+}
+
+
 /// Helper function to get a random ExtraInput.
 fn generate_random_extra<S>(state: &mut S) -> ExtraInput
 where
@@ -577,6 +731,7 @@ where
     // If the mutation was successful, resize the extra value to the correct size.
     if let Ok(MutationResult::Mutated) = result {
         match &mut extra.value {
+            ParamType(value) => {} // if content is param, no resize
             ExtraType::Boolean(value) => value.buffer.bytes_mut().resize(1, 0),
             ExtraType::Int(value) | ExtraType::Float(value) => {
                 value.buffer.bytes_mut().resize(4, 0)

@@ -18,6 +18,7 @@ pub struct IntentTemplate {
     categories: Vec<String>,
     datas: Vec<String>,
     pub known_extras_keys: HashMap<String, String>,
+    pub params: HashMap<String, String>,
 }
 
 impl_serdeany!(IntentTemplate);
@@ -54,11 +55,12 @@ impl IntentTemplate {
             component_package: self.package_name(),
             component_class: self.class_name(),
 
-            data: self.datas[data_index].clone(),
+            data: self.datas[data_index].clone(), // String 타입
             mime_type: MimeType::TextPlain,
             flags: 0,
 
             extras: Vec::new(),
+            params: Vec::new(),
         }
     }
 }
