@@ -16,7 +16,7 @@ use crate::{
     intent_input::{
         DirectInput, ExtraInput, ExtraType, IntentInput, MimeType, URIInput, URIScheme, URISuffix, ParamInput, ParamType,
     },
-    util::COMMON_EXTRA_KEYS, COMMON_PARAM_VALUES,
+    util::{COMMON_EXTRA_KEYS, COMMON_PARAM_VALUES,}
 };
 
 /// Mutator that randomly modifies the flags attribute of the intent.
@@ -104,43 +104,44 @@ where
         stage_idx: i32,
     ) -> Result<libafl::prelude::MutationResult, libafl::Error> {
         // Check if the data is already a byte input
-        match &mut input.data {
-            Some(uri_input) => match state.rand_mut().between(1, 3) {
-                1 => {
-                    // Mutate the scheme
-                    uri_input.scheme = state.rand_mut().choose(URIScheme::iter());
-                }
-                2 => {
-                    // Mutate the suffix
-                    uri_input.suffix = state.rand_mut().choose(URISuffix::iter());
-                }
-                _ => {
-                    // Mutate the content
-                    return self.backing_byte_mutator.mutate(
-                        state,
-                        &mut uri_input.content,
-                        stage_idx,
-                    );
-                }
-            },
-            None => {
-                let mut uri_input = URIInput {
-                    scheme: state.rand_mut().choose(URIScheme::iter()),
-                    suffix: state.rand_mut().choose(URISuffix::iter()),
-                    content: BytesInput::new(Vec::new()),
-                };
+        return Ok(MutationResult::Skipped);
+        // match &mut input.data {
+        //     Some(uri_input) => match state.rand_mut().between(1, 3) {
+        //         1 => {
+        //             // Mutate the scheme
+        //             uri_input.scheme = state.rand_mut().choose(URIScheme::iter());
+        //         }
+        //         2 => {
+        //             // Mutate the suffix
+        //             uri_input.suffix = state.rand_mut().choose(URISuffix::iter());
+        //         }
+        //         _ => {
+        //             // Mutate the content
+        //             return self.backing_byte_mutator.mutate(
+        //                 state,
+        //                 &mut uri_input.content,
+        //                 stage_idx,
+        //             );
+        //         }
+        //     },
+        //     None => {
+        //         let mut uri_input = URIInput {
+        //             scheme: state.rand_mut().choose(URIScheme::iter()),
+        //             suffix: state.rand_mut().choose(URISuffix::iter()),
+        //             content: BytesInput::new(Vec::new()),
+        //         };
 
-                let result =
-                    self.backing_byte_mutator
-                        .mutate(state, &mut uri_input.content, stage_idx);
+        //         let result =
+        //             self.backing_byte_mutator
+        //                 .mutate(state, &mut uri_input.content, stage_idx);
 
-                input.data.get_or_insert(uri_input);
+        //         input.data.get_or_insert(uri_input);
 
-                return result;
-            }
-        }
+        //         return result;
+        //     }
+        // }
 
-        Ok(MutationResult::Mutated)
+        // Ok(MutationResult::Mutated)
     }
 }
 
@@ -190,14 +191,14 @@ where
 
 pub struct IntentRandomAddParamMutator<S>
 where
-    S: HasRand + HasCorpus, HasMaxSize, HasNamedMetadata,
+    S: HasRand + HasCorpus + HasMaxSize + HasNamedMetadata,
 {
     backing_byte_mutator: StdScheduledMutator<BytesInput, BaseByteMutationsType, S>,
 }
 
 impl<S> Named for IntentRandomAddParamMutator<S>
 where
-    S: HasRand + HasCorpus, HasMaxSize, HasNamedMetadata,
+    S: HasRand + HasCorpus + HasMaxSize + HasNamedMetadata,
 {
     fn name(&self) -> &str {
         "IntentRandomAddParamMutator"
@@ -233,26 +234,26 @@ where
         }
 
         match generate_random_param(state) {
-            Some(p) => input.params.push(p);
+            Some(p) => {input.params.push(p);},
             None => {}
         }
 
         let param: &mut ParamInput = &mut input.params.last_mut().unwrap();
 
-        mutate_content(&mut self.backing_byte_mutator, state, param, stage_idx)
+        mutate_param_content(&mut self.backing_byte_mutator, state, param, stage_idx)
     }
 }
 
 pub struct IntentRandomParamContentMutator<S>
 where
-    S: HasRand + HasCorpus, HasMaxSize, HasNamedMetadata,
+    S: HasRand + HasCorpus + HasMaxSize + HasNamedMetadata,
 {
     backing_byte_mutator: StdScheduledMutator<BytesInput, BaseByteMutationsType, S>,
 }
 
 impl<S> Named for IntentRandomParamContentMutator<S>
 where
-    S: HasRand + HasCorpus, HasMaxSize, HasNamedMetadata,
+    S: HasRand + HasCorpus + HasMaxSize + HasNamedMetadata,
 {
     fn name(&self) -> &str {
         "IntentRandomParamContentMutator"
@@ -280,13 +281,13 @@ where
         input: &mut IntentInput,
         stage_idx: i32,
     ) -> Result<libafl::prelude::MutationResult, libafl::Error> {
-        let param = match get_param_to_mutate(state, input) {
+        let param = match get_params_to_mutate(state, input) {
             Ok(param) => param,
             Err(_) => return Ok(MutationResult::Skipped),
         };
 
         // Mutate the content
-        mutate_content(&mut self.backing_byte_mutator, state, param, stage_idx)
+        mutate_param_content(&mut self.backing_byte_mutator, state, param, stage_idx)
     }
 }
 
@@ -338,7 +339,7 @@ where
         let extra: &mut ExtraInput = &mut input.extras.last_mut().unwrap();
 
         // Mutate the content
-        mutate_content(&mut self.backing_byte_mutator, state, extra, stage_idx)
+        mutate_extra_content(&mut self.backing_byte_mutator, state, extra, stage_idx)
     }
 }
 
@@ -450,7 +451,7 @@ where
         };
 
         // Mutate the content
-        mutate_content(&mut self.backing_byte_mutator, state, extra, stage_idx)
+        mutate_extra_content(&mut self.backing_byte_mutator, state, extra, stage_idx)
     }
 }
 
@@ -587,7 +588,7 @@ where
 fn get_params_to_mutate<'a, S>(
     state: &mut S,
     input: &'a mut IntentInput,
-) -> Result<&'a mut ExtraInput, libafl::Error>
+) -> Result<&'a mut ParamInput, libafl::Error>
 where
     S: HasRand + HasCorpus + HasMaxSize + HasNamedMetadata,
 {
@@ -620,14 +621,15 @@ where
     let param_value: String = match state.rand_mut().between(1, 2) {
         1 => String::new(),
         2 => { 
-            let index = state.rand_mut().between(0, COMMON_PARAM_VALUES.len() - 1);
+            let index = state.rand_mut().between(0, (COMMON_PARAM_VALUES.len() - 1) as u64) as usize;
             String::from(COMMON_PARAM_VALUES[index])
         },
-    }
+        _ => String::new(),
+    };
 
     let value: ParamType = ParamType{
         buffer: BytesInput::new(param_value.as_bytes().to_vec()),
-    }
+    };
     
     Some(ParamInput {key, value})
 }
@@ -717,7 +719,7 @@ where
     }
 }
 
-fn mutate_content<S>(
+fn mutate_extra_content<S>(
     mutator: &mut StdScheduledMutator<BytesInput, BaseByteMutationsType, S>,
     state: &mut S,
     extra: &mut ExtraInput,
@@ -731,7 +733,6 @@ where
     // If the mutation was successful, resize the extra value to the correct size.
     if let Ok(MutationResult::Mutated) = result {
         match &mut extra.value {
-            ParamType(value) => {} // if content is param, no resize
             ExtraType::Boolean(value) => value.buffer.bytes_mut().resize(1, 0),
             ExtraType::Int(value) | ExtraType::Float(value) => {
                 value.buffer.bytes_mut().resize(4, 0)
@@ -741,6 +742,19 @@ where
         }
     }
 
+    result
+}
+
+fn mutate_param_content<S>(
+    mutator: &mut StdScheduledMutator<BytesInput, BaseByteMutationsType, S>,
+    state: &mut S,
+    extra: &mut ParamInput,
+    stage_idx: i32,
+) -> Result<MutationResult, libafl::Error>
+where
+    S: HasRand + HasCorpus + HasMaxSize + HasNamedMetadata,
+{
+    let result = mutator.mutate(state, &mut extra.value.content_buffer(), stage_idx);
     result
 }
 

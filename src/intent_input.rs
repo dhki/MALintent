@@ -73,6 +73,7 @@ impl IntentInput {
                 .params
                 .iter()
                 .filter_map(|p| p.command_args())
+                .collect::<Vec<String>>()
                 .join("&");
 
             write!(&mut command, " -d '{}?{}'", self.data, params_string);
@@ -267,7 +268,7 @@ pub struct ParamInput {
 
 impl ParamInput {
     pub fn command_args(&self) -> Option<String> {
-        let param_value = encode_hex(self.value.buffer.bytes())
+        let param_value = encode_hex(self.value.buffer.bytes());
 
         Some(format!("{}={}", self.key, param_value))
     }
